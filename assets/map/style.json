@@ -1,0 +1,30 @@
+{
+  "version": 8,
+  "name": "Sikkim Minimal",
+  "glyphs": "mapbox://fonts/mapbox/{fontstack}/{range}.pbf",
+  "sources": {
+    "raster-tiles": {
+      "type": "raster",
+      "tiles": [
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+      ],
+      "tileSize": 256,
+      "attribution": "© OpenStreetMap contributors"
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {"background-color": "#000000"}
+    },
+    {
+      "id": "osmraster",
+      "type": "raster",
+      "source": "raster-tiles",
+      "minzoom": 0,
+      "maxzoom": 19
+    }
+  ]
+}
+

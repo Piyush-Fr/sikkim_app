@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "1081985017914",
+    "project_id": "sikkim-tourism-a9036",
+    "storage_bucket": "sikkim-tourism-a9036.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1081985017914:android:d3556dd54f6b0b7bb46d03",
+        "android_client_info": {
+          "package_name": "com.example.sikkim_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1081985017914-kqk3gk60qvibisvb5sp1et7s8m9juopd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.sikkim_app",
+            "certificate_hash": "fb84ac6e84099741852803800eb55249c42cb251"
+          }
+        },
+        {
+          "client_id": "1081985017914-bs3aufagjsn2ioegmttrmea3f896cg5t.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2WLlGRGmxCrJbuud3nx8c1aIrvOaN7Cg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1081985017914-bs3aufagjsn2ioegmttrmea3f896cg5t.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1081985017914-r5fa1cp35sl530a2luf7k0ecjh7u6iaj.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.sikkimApp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
