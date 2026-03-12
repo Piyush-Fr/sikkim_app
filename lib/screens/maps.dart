@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, TargetPlatform;
+import 'package:sikkim_app/screens/chatbot.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -21,42 +20,26 @@ class _StreetViewExampleState extends State<StreetViewExample> {
 
   static const LatLng _sikkimCenter = LatLng(27.5330, 88.5122); // Near Gangtok
 
-  final Set<Marker> _markers = <Marker>{
-    const Marker(
-      markerId: MarkerId('gangtok'),
-      position: LatLng(27.3314, 88.6138),
-      infoWindow: InfoWindow(title: 'Gangtok', snippet: 'Capital of Sikkim'),
-    ),
-    const Marker(
-      markerId: MarkerId('tsomgo'),
-      position: LatLng(27.3744, 88.7639),
+  final Set<Marker> _markers = <Marker>{};
+
+  Marker _buildMarker({
+    required String id,
+    required LatLng position,
+    required String title,
+    String? snippet,
+  }) {
+    void openActions() => _showMarkerActions(title);
+    return Marker(
+      markerId: MarkerId(id),
+      position: position,
+      onTap: openActions,
       infoWindow: InfoWindow(
-        title: 'Tsomgo Lake',
-        snippet: 'High altitude lake',
+        title: title,
+        snippet: snippet,
+        onTap: openActions,
       ),
-    ),
-    const Marker(
-      markerId: MarkerId('pelling'),
-      position: LatLng(27.3150, 88.2410),
-      infoWindow: InfoWindow(
-        title: 'Pelling',
-        snippet: 'Views of Kanchenjunga',
-      ),
-    ),
-    const Marker(
-      markerId: MarkerId('yuksom'),
-      position: LatLng(27.3741, 88.2586),
-      infoWindow: InfoWindow(
-        title: 'Yuksom',
-        snippet: 'Historic first capital',
-      ),
-    ),
-    const Marker(
-      markerId: MarkerId('rumtek'),
-      position: LatLng(27.3216, 88.6129),
-      infoWindow: InfoWindow(title: 'Rumtek Monastery'),
-    ),
-  };
+    );
+  }
 
   @override
   void initState() {
@@ -67,6 +50,46 @@ class _StreetViewExampleState extends State<StreetViewExample> {
     _watchdog = Timer(const Duration(seconds: 10), () {
       if (mounted && _loading) setState(() => _loading = false);
     });
+    // Build markers with actions
+    _markers
+      ..clear()
+      ..addAll([
+        _buildMarker(
+          id: 'gangtok',
+          position: const LatLng(27.3314, 88.6138),
+          title: 'Gangtok',
+          snippet: 'Capital of Sikkim',
+        ),
+        _buildMarker(
+          id: 'tsomgo',
+          position: const LatLng(27.3744, 88.7639),
+          title: 'Tsomgo Lake',
+          snippet: 'High altitude lake',
+        ),
+        _buildMarker(
+          id: 'pelling',
+          position: const LatLng(27.3150, 88.2410),
+          title: 'Pelling',
+          snippet: 'Views of Kanchenjunga',
+        ),
+        _buildMarker(
+          id: 'yuksom',
+          position: const LatLng(27.3741, 88.2586),
+          title: 'Yuksom',
+          snippet: 'Historic first capital',
+        ),
+        _buildMarker(
+          id: 'rumtek',
+          position: const LatLng(27.3216, 88.6129),
+          title: 'Rumtek Monastery',
+        ),
+      ]);
+  }
+
+  @override
+  void dispose() {
+    _watchdog?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadStyle() async {
@@ -114,9 +137,63 @@ class _StreetViewExampleState extends State<StreetViewExample> {
     );
   }
 
+  // Custom zoom controls removed; touch gestures handle zooming
+
+  void _showMarkerActions(String placeName) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.black,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  placeName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.question_answer,
+                    color: Colors.white,
+                  ),
+                  title: const Text(
+                    'Ask Sikky about this',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    final query = 'Tell me about $placeName';
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => Chatbot(initialQuery: query),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final bool useLiteMode = defaultTargetPlatform == TargetPlatform.android;
+    final bool useLiteMode = false; // enable full interactivity (pan/zoom)
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sikkim Map'),
@@ -144,6 +221,9 @@ class _StreetViewExampleState extends State<StreetViewExample> {
             indoorViewEnabled: false,
             mapType: MapType.normal,
             liteModeEnabled: useLiteMode,
+            zoomGesturesEnabled: true,
+            scrollGesturesEnabled: true,
+            rotateGesturesEnabled: true,
           ),
           if (_loading) const Center(child: CircularProgressIndicator()),
           if (_error != null)

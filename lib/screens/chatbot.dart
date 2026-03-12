@@ -7,8 +7,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:google_generative_ai/google_generative_ai.dart' as genai;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'login.dart';
+import 'package:http/http.dart' as http;
+import '../config/secrets.dart';
 
 class Chatbot extends StatefulWidget {
   const Chatbot({super.key, this.initialQuery});
@@ -28,9 +28,9 @@ class _ChatbotState extends State<Chatbot>
   StreamSubscription<List<ConnectivityResult>>? _connSub;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _msgSub;
   bool _hasNetwork = true;
-  bool _isListening = false; // STT disabled for now
-  bool _isSpeaking = false;
+  bool _isSpeaking = false; // tracked to know if TTS is currently narrating
   bool _isLoading = false;
+  bool _narrationEnabled = true; // Speaker toggle
 
   @override
   bool get wantKeepAlive => true;
@@ -75,42 +75,9 @@ class _ChatbotState extends State<Chatbot>
     }
   }
 
-  Future<void> _updateSessionUid() async {}
+  // Removed unused session update method
 
   // Sign-in functionality moved to login.dart
-
-  Future<void> _signOut() async {
-    try {
-      await FirebaseAuth.instance.signOut();
-      try {
-        // Also revoke Google selection so next login prompts account picker
-        // We can't import GoogleSignIn here to avoid coupling; login.dart handles chooser at sign-in.
-      } catch (_) {}
-      final box = Hive.box('guide_cache');
-      // Clear all cached messages locally on logout
-      await box.delete('cached_messages');
-      setState(() {
-        _activeUserId = null;
-        _messages.clear();
-      });
-      _msgSub?.cancel();
-
-      // Clear login state in shared preferences
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('isLoggedIn', false);
-      await prefs.remove('userId');
-
-      // Navigate to login screen
-      if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-          (route) => false,
-        );
-      }
-    } catch (e) {
-      print('Error during sign out: $e');
-    }
-  }
 
   void _listenUserMessages(String uid) {
     _msgSub?.cancel();
@@ -194,10 +161,13 @@ class _ChatbotState extends State<Chatbot>
   }
 
   void _watchConnectivity() async {
-    final status = await Connectivity().checkConnectivity();
-    _hasNetwork = status != ConnectivityResult.none;
+    // connectivity_plus 6.x returns List<ConnectivityResult>
+    final statusList = await Connectivity().checkConnectivity();
+    _hasNetwork = statusList.any((s) => s != ConnectivityResult.none);
+    print('DEBUG CHATBOT: Initial network check: $_hasNetwork (status: $statusList)');
     _connSub = Connectivity().onConnectivityChanged.listen((list) {
       final anyConnected = list.any((s) => s != ConnectivityResult.none);
+      print('DEBUG CHATBOT: Network changed: $anyConnected (status: $list)');
       setState(() => _hasNetwork = anyConnected);
     });
   }
@@ -212,11 +182,33 @@ class _ChatbotState extends State<Chatbot>
     super.dispose();
   }
 
-  Future<void> _startListening({String locale = 'en_IN'}) async {}
+  // STT removed
 
-  Future<void> _stopListening() async {}
+  Future<void> _testConnection() async {
+    try {
+      final response = await http.get(Uri.parse('https://www.google.com'));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Connection Success: ${response.statusCode}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Connection FAILED: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   Future<void> _speak(String text, {String lang = 'en-IN'}) async {
+    if (!_narrationEnabled) return;
     setState(() => _isSpeaking = true);
     await _tts.setLanguage(lang);
     if (lang.startsWith('hi')) {
@@ -248,68 +240,64 @@ class _ChatbotState extends State<Chatbot>
       _messages.add(_Message(role: 'user', text: input));
       _isLoading = true;
     });
-    // Persist user message to both Firestore and local storage
-    await _persistMessage(role: 'user', text: input);
+    // Persist user message (non-blocking — don't let Firestore hang the chatbot)
+    _persistMessage(role: 'user', text: input).catchError((e) {
+      print('DEBUG: Non-blocking persist error (user msg): $e');
+    });
 
     final String prompt = _buildPrompt(input, locale);
     String reply;
     try {
-      if (_hasNetwork) {
-        // ================== SECURITY WARNING ==================
-        // Your API key should NOT be stored in the app.
-        // This is a major security risk.
-        final apiKey = const String.fromEnvironment(
-          'GEMINI_API_KEY',
-          defaultValue:
-              'AIzaSyCJ9wiE7FImiAFNWDQKa-iLUr7As3C179E', // New API Key Added
-        );
+      // Always try the API call directly — connectivity_plus is unreliable on many devices
+      print('DEBUG CHATBOT: Calling Gemini API...');
+      final apiKey = Secrets.geminiApiKey;
+      print('DEBUG CHATBOT: Using API key: ${apiKey.substring(0, 10)}...');
 
-        // ================== MODEL UPDATED ==================
-        // Changed model to 'gemini-1.5-flash' as requested.
-        final model = genai.GenerativeModel(
-          model: 'gemini-2.5-flash',
-          apiKey: apiKey,
-        );
+      final model = genai.GenerativeModel(
+        model: 'gemini-2.5-flash',
+        apiKey: apiKey,
+      );
 
-        // Retry with exponential backoff for transient 5xx/unavailable
-        String? respText;
-        int attempt = 0;
-        int delayMs = 600;
-        while (attempt < 3 && (respText == null || respText.isEmpty)) {
-          attempt++;
-          try {
-            final resp = await model.generateContent([
-              genai.Content.text(prompt),
-            ]);
-            respText = (resp.text ?? '').trim();
-            if (respText.isNotEmpty) break;
-          } catch (e) {
-            final s = e.toString();
-            final transient =
-                s.contains('503') ||
-                s.contains('UNAVAILABLE') ||
-                s.contains('timeout');
-            if (!transient) rethrow;
-          }
-          await Future.delayed(Duration(milliseconds: delayMs));
-          delayMs *= 2;
+      print('DEBUG CHATBOT: Starting _generateWithRetry with 30s timeout...');
+      String? respText;
+      try {
+        respText = await _generateWithRetry(model, prompt)
+            .timeout(
+              const Duration(seconds: 30),
+              onTimeout: () {
+                print('DEBUG CHATBOT: Gemini API timed out after 30s');
+                return null;
+              },
+            );
+      } catch (retryError) {
+        print('DEBUG CHATBOT: _generateWithRetry threw: $retryError');
+        throw retryError;
+      }
+      print('DEBUG CHATBOT: API result: ${respText == null ? "null" : "length=${respText.length}"}');
+
+      if (respText != null && respText.isNotEmpty) {
+        reply = respText;
+        // Cache FAQ locally
+        try {
+          final box = Hive.box('guide_cache');
+          final Map faq = box.get('faq', defaultValue: {}) as Map;
+          faq[input] = reply;
+          await box.put('faq', faq);
+        } catch (e) {
+          print('DEBUG CHATBOT: FAQ cache error (non-critical): $e');
         }
-
-        if ((respText ?? '').isEmpty) {
-          reply = await _offlineAnswer(input, locale);
-        } else {
-          reply = respText!;
-        }
-        final box = Hive.box('guide_cache');
-        final Map faq = box.get('faq', defaultValue: {}) as Map;
-        faq[input] = reply;
-        await box.put('faq', faq);
       } else {
-        reply = await _offlineAnswer(input, locale);
+        // API returned empty after all retries — show clear message
+        reply = locale.startsWith('hi')
+            ? 'API से कोई जवाब नहीं मिला। कृपया पुनः प्रयास करें।'
+            : 'No response from AI. Please try again in a moment.';
       }
     } catch (e) {
       final err = e.toString();
-      reply = locale.startsWith('hi') ? 'त्रुटि: $err' : 'Error: $err';
+      print('GEMINI ERROR: $err');
+      reply = locale.startsWith('hi')
+          ? 'त्रुटि: $err'
+          : 'Error: $err';
     }
 
     if (!mounted) return;
@@ -318,9 +306,15 @@ class _ChatbotState extends State<Chatbot>
       _isLoading = false;
       _textController.clear();
     });
-    // Persist assistant message to both Firestore and local storage
-    await _persistMessage(role: 'assistant', text: reply);
-    await _speak(reply, lang: locale.replaceAll('_', '-'));
+    // Persist assistant message (non-blocking)
+    _persistMessage(role: 'assistant', text: reply).catchError((e) {
+      print('DEBUG: Non-blocking persist error (assistant msg): $e');
+    });
+    if (_narrationEnabled) {
+      await _speak(reply, lang: locale.replaceAll('_', '-'));
+    } else {
+      await _tts.stop();
+    }
   }
 
   Future<void> _persistMessage({
@@ -374,50 +368,74 @@ class _ChatbotState extends State<Chatbot>
     return '$system\n\n$context\n\nUser: $userInput\nAssistant:';
   }
 
+  Future<String?> _generateWithRetry(
+    genai.GenerativeModel model,
+    String prompt,
+  ) async {
+    String? respText;
+    int attempt = 0;
+    int delayMs = 2000;
+    while (attempt < 3) {
+      attempt++;
+      try {
+        print('DEBUG CHATBOT: generateContent attempt $attempt/3...');
+        final resp = await model.generateContent([genai.Content.text(prompt)]);
+        respText = (resp.text ?? '').trim();
+        print('DEBUG CHATBOT: attempt $attempt got response, length=${respText.length}');
+        if (respText.isNotEmpty) return respText;
+      } catch (e) {
+        print('DEBUG CHATBOT: Attempt $attempt failed: $e');
+        final s = e.toString();
+        final transient =
+            s.contains('503') ||
+            s.contains('UNAVAILABLE') ||
+            s.contains('timeout') ||
+            s.contains('429') ||
+            s.contains('RESOURCE_EXHAUSTED') ||
+            s.contains('Quota exceeded');
+        if (!transient) rethrow;
+      }
+      print('DEBUG CHATBOT: Waiting ${delayMs}ms before retry...');
+      await Future.delayed(Duration(milliseconds: delayMs));
+      delayMs *= 2;
+    }
+    print('DEBUG CHATBOT: All 3 attempts exhausted, returning null');
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    const Color bgColor = Color(0xFF0F172A);
+    const Color surfaceColor = Color(0xFF1E293B);
+    const Color primaryColor = Color(0xFF2563EB);
+    const Color textColor = Colors.white;
+    const Color textMuted = Color(0xFF94A3B8);
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: bgColor,
         elevation: 0,
         systemOverlayStyle: const SystemUiOverlayStyle(
           statusBarIconBrightness: Brightness.light,
         ),
-        title: const Text('Audio Guide', style: TextStyle(color: Colors.white)),
-        actions: [
-          Builder(
-            builder: (context) {
-              final user = FirebaseAuth.instance.currentUser;
-              final photo = user?.photoURL;
-              return Row(
-                children: user == null || user.isAnonymous
-                    ? [
-                        // Sign-in button removed - functionality moved to login.dart
-                      ]
-                    : [
-                        if (photo != null)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8.0),
-                            child: CircleAvatar(
-                              radius: 14,
-                              backgroundImage: NetworkImage(photo),
-                            ),
-                          ),
-                        TextButton.icon(
-                          onPressed: _signOut,
-                          icon: const Icon(Icons.logout, color: Colors.white),
-                          label: const Text(
-                            'Sign out',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ],
-              );
-            },
+        title: const Text(
+          'Audio Guide',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
           ),
-        ],
+        ),
+        actions: [],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Container(
+            color: surfaceColor,
+            height: 1.0,
+          ),
+        ),
       ),
       body: Column(
         children: [
@@ -426,25 +444,77 @@ class _ChatbotState extends State<Chatbot>
               padding: const EdgeInsets.all(16),
               itemCount: _messages.length,
               itemBuilder: (context, index) {
+                final user = FirebaseAuth.instance.currentUser;
+                final photoUrl = user?.photoURL;
+                
                 final m = _messages[index];
                 final isUser = m.role == 'user';
-                return Align(
-                  alignment: isUser
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 6),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isUser ? Colors.blueAccent : Colors.white12,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      m.text,
-                      style: TextStyle(
-                        color: isUser ? Colors.white : Colors.white,
+                
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 24.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+                    children: [
+                      if (!isUser) ...[
+                        const CircleAvatar(
+                          radius: 16,
+                          backgroundColor: surfaceColor,
+                          child: Icon(Icons.smart_toy, color: primaryColor, size: 18),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      Flexible(
+                        child: Column(
+                          crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isUser ? 'YOU' : 'AI GUIDE',
+                              style: const TextStyle(
+                                color: textMuted,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: isUser ? primaryColor : surfaceColor,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Text(
+                                m.text,
+                                style: const TextStyle(
+                                  color: textColor,
+                                  fontSize: 15,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                      if (isUser) ...[
+                        const SizedBox(width: 12),
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundColor: Colors.grey.shade800,
+                          backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+                          child: photoUrl == null
+                              ? const Text(
+                                  'User',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )
+                              : null,
+                        ),
+                      ],
+                    ],
                   ),
                 );
               },
@@ -455,64 +525,71 @@ class _ChatbotState extends State<Chatbot>
               padding: EdgeInsets.all(12.0),
               child: CircularProgressIndicator(),
             ),
-          const Divider(height: 1, color: Colors.white24),
+          const Divider(height: 1, color: surfaceColor),
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _textController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Ask about a monastery…',
-                        hintStyle: const TextStyle(color: Colors.white54),
-                        filled: true,
-                        fillColor: Colors.white12,
-                        border: OutlineInputBorder(
-                          borderSide: BorderSide.none,
-                          borderRadius: BorderRadius.circular(12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: surfaceColor,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: _narrationEnabled
+                          ? (_isSpeaking ? 'Narrating…' : 'Narration on')
+                          : 'Narration muted',
+                      onPressed: () async {
+                        setState(() => _narrationEnabled = !_narrationEnabled);
+                        if (!_narrationEnabled) {
+                          await _tts.stop();
+                          setState(() => _isSpeaking = false);
+                        }
+                      },
+                      icon: Icon(
+                        _narrationEnabled ? Icons.mic_none : Icons.mic_off,
+                        color: _narrationEnabled
+                            ? (_isSpeaking ? Colors.greenAccent : textMuted)
+                            : Colors.redAccent,
+                      ),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _textController,
+                        style: const TextStyle(color: textColor),
+                        decoration: const InputDecoration(
+                          hintText: 'Ask about a monastery...',
+                          hintStyle: TextStyle(color: textMuted),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(vertical: 14),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  _MicButton(
-                    active: _isListening,
-                    onPressed: () async {
-                      if (_isListening) {
-                        await _stopListening();
-                      } else {
-                        await _startListening(locale: 'en_IN');
-                      }
-                      setState(() {});
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _LangToggle(
-                    onLangSelected: (code) async {
-                      if (code == 'hi') {
-                        await _startListening(locale: 'hi_IN');
-                      } else {
-                        await _startListening(locale: 'en_IN');
-                      }
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: _isLoading
-                        ? null
-                        : () => _askGuide(
-                            _textController.text.contains(
-                                  RegExp('[\u0900-\u097F]'),
-                                )
-                                ? 'hi-IN'
-                                : 'en-IN',
-                          ),
-                    icon: const Icon(Icons.send, color: Colors.white),
-                  ),
-                ],
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6.0),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: primaryColor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          onPressed: _isLoading
+                              ? null
+                              : () => _askGuide(
+                                  _textController.text.contains(
+                                        RegExp('[\u0900-\u097F]'),
+                                      )
+                                      ? 'hi-IN'
+                                      : 'en-IN',
+                                ),
+                          icon: const Icon(Icons.send, color: Colors.white, size: 18),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -522,51 +599,7 @@ class _ChatbotState extends State<Chatbot>
   }
 }
 
-class _MicButton extends StatelessWidget {
-  final bool active;
-  final VoidCallback onPressed;
-  const _MicButton({required this.active, required this.onPressed});
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      onPressed: onPressed,
-      icon: Icon(active ? Icons.mic : Icons.mic_none, color: Colors.white),
-    );
-  }
-}
-
-class _LangToggle extends StatefulWidget {
-  final ValueChanged<String> onLangSelected;
-  const _LangToggle({required this.onLangSelected});
-  @override
-  State<_LangToggle> createState() => _LangToggleState();
-}
-
-class _LangToggleState extends State<_LangToggle> {
-  String _lang = 'en';
-  @override
-  Widget build(BuildContext context) {
-    return DropdownButton<String>(
-      dropdownColor: Colors.black,
-      value: _lang,
-      items: const [
-        DropdownMenuItem(
-          value: 'en',
-          child: Text('EN', style: TextStyle(color: Colors.white)),
-        ),
-        DropdownMenuItem(
-          value: 'hi',
-          child: Text('HI', style: TextStyle(color: Colors.white)),
-        ),
-      ],
-      onChanged: (v) {
-        if (v == null) return;
-        setState(() => _lang = v);
-        widget.onLangSelected(v);
-      },
-    );
-  }
-}
+// STT widgets removed as narration toggle replaces them
 
 class _Message {
   final String role;

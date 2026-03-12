@@ -12,6 +12,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'firebase_options.dart';
+import 'config/secrets.dart';
 
 Future<void> main() async {
   // Optimize for better memory management
@@ -25,12 +26,7 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   // Anonymous sign-in removed - will be handled by login.dart
-  Gemini.init(
-    apiKey: const String.fromEnvironment(
-      'GEMINI_API_KEY',
-      defaultValue: 'AIzaSyCMdybWPrh8J3cAu62vIyfFbB6GO3jtaRo',
-    ),
-  );
+  Gemini.init(apiKey: Secrets.geminiApiKey);
   _configureHighRefresh();
   
   // Set preferred orientations to reduce graphics buffer usage

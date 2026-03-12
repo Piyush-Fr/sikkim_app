@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Secrets and API keys
+lib/config/secrets.dart
+android/app/google-services.json
+android/secrets.properties
+lib/firebase_options.dart

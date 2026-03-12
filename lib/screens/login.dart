@@ -15,7 +15,10 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: <String>['email']);
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: <String>['email'],
+    serverClientId: '1081985017914-bs3aufagjsn2ioegmttrmea3f896cg5t.apps.googleusercontent.com',
+  );
   bool _isLoading = false;
   VideoPlayerController? _videoController;
   bool _videoInitialized = false;
@@ -97,59 +100,105 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
     });
 
     try {
+      print('DEBUG [STEP 0]: Starting Google Sign-In...');
       // Ensure account chooser shows by clearing previous selection
       try {
         await _googleSignIn.signOut();
-        await _googleSignIn.disconnect();
-      } catch (_) {}
-
-      // Start the Google sign-in process
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) {
-        // User canceled the sign-in
-        setState(() {
-          _isLoading = false;
-        });
-        return;
+      } catch (e) {
+        print('DEBUG [STEP 0]: signOut failed (ignoring): $e');
       }
 
-      // Get authentication details from Google
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+      // Step 1: Show account chooser
+      print('DEBUG [STEP 1]: Waiting for user to select account...');
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn().timeout(
+        const Duration(seconds: 60),
+        onTimeout: () {
+          throw Exception('Google Sign-In timed out at STEP 1 (account chooser).');
+        },
+      );
 
-      // Create Firebase credential
+      if (googleUser == null) {
+        print('DEBUG [STEP 1]: User canceled sign-in');
+        if (mounted) {
+          setState(() { _isLoading = false; });
+        }
+        return;
+      }
+      print('DEBUG [STEP 1]: Account selected: ${googleUser.email}');
+
+      // Step 2: Get authentication tokens from Google
+      print('DEBUG [STEP 2]: Getting Google auth tokens...');
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication.timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Timed out at STEP 2 (getting auth tokens). This usually means SHA-1 fingerprint mismatch.');
+        },
+      );
+      print('DEBUG [STEP 2]: Got tokens. AccessToken: ${googleAuth.accessToken != null}, IDToken: ${googleAuth.idToken != null}');
+
+      // Check if we actually got the tokens
+      if (googleAuth.idToken == null) {
+        throw Exception(
+          'idToken is null. This means the serverClientId is wrong or SHA-1 fingerprint is not registered in Firebase Console.',
+        );
+      }
+
+      // Step 3: Create Firebase credential and sign in
       final OAuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      // Sign in to Firebase with Google credential
+      print('DEBUG [STEP 3]: Signing in to Firebase...');
       final UserCredential userCredential = await _auth.signInWithCredential(
         credential,
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Timed out at STEP 3 (Firebase signInWithCredential).');
+        },
       );
+      print('DEBUG [STEP 3]: Firebase sign-in OK. User: ${userCredential.user?.uid}');
+
       final User? user = userCredential.user;
-
       if (user != null) {
-        // Save user data to Firestore
-        await _saveUserData(user);
-
-        // Save login state to shared preferences
+        // Save login state to shared preferences first (fast, local)
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('isLoggedIn', true);
         await prefs.setString('userId', user.uid);
 
-        // Navigate to main shell (with bottom navigation)
+        // Save user data to Firestore (non-blocking - don't let this prevent navigation)
+        print('DEBUG [STEP 4]: Saving user data to Firestore (non-blocking)...');
+        _saveUserData(user).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            print('DEBUG [STEP 4]: Firestore save timed out (non-critical, continuing).');
+          },
+        ).catchError((e) {
+          print('DEBUG [STEP 4]: Firestore save error (non-critical): $e');
+        });
+
+        // Navigate to main shell immediately
         if (mounted) {
+          print('DEBUG [STEP 5]: Navigating to MainShell...');
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const MainShell()),
           );
         }
       }
-    } catch (e) {
-      // Show error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sign-in failed: ${e.toString()}')),
-      );
+    } catch (e, stackTrace) {
+      print('DEBUG: Sign-in ERROR: $e');
+      print('DEBUG: StackTrace: $stackTrace');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sign-in failed: $e'),
+            duration: const Duration(seconds: 5),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -274,6 +323,13 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                           ),
                         ),
                   const SizedBox(height: 20),
+                  TextButton(
+                    onPressed: _debugSkipLogin,
+                    child: const Text(
+                      'Skip Login (Debug)',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -281,5 +337,18 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+
+  Future<void> _debugSkipLogin() async {
+    print('DEBUG: Skipping login...');
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isLoggedIn', true);
+    await prefs.setString('userId', 'debug_user_123');
+
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const MainShell()),
+      );
+    }
   }
 }

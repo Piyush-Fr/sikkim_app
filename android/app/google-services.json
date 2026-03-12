@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "1081985017914-6j3oke02nju05ilintcf6bum2mpr53hi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.sikkim_app",
+            "certificate_hash": "8ddb5b0ed88c739bf337b13abd124fe9f40da35c"
+          }
+        },
+        {
           "client_id": "1081985017914-kqk3gk60qvibisvb5sp1et7s8m9juopd.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
