@@ -56,7 +56,7 @@ class _MainShellState extends State<MainShell> {
         color: const Color(0xFF0D1127),
         border: Border(
           top: BorderSide(
-            color: Colors.white.withOpacity(0.06),
+            color: Colors.white.withValues(alpha:0.06),
             width: 1,
           ),
         ),
@@ -96,7 +96,7 @@ class _MainShellState extends State<MainShell> {
               icon,
               color: isSelected
                   ? selectedColor
-                  : Colors.white.withOpacity(0.45),
+                  : Colors.white.withValues(alpha:0.45),
               size: 26,
             ),
             const SizedBox(height: 5),
@@ -108,7 +108,7 @@ class _MainShellState extends State<MainShell> {
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
                 color: isSelected
                     ? selectedColor
-                    : Colors.white.withOpacity(0.45),
+                    : Colors.white.withValues(alpha:0.45),
                 letterSpacing: 0.5,
               ),
             ),

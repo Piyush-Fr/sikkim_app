@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:sikkim_app/screens/homescreen.dart';
-import 'package:sikkim_app/screens/maps.dart';
-import 'package:sikkim_app/screens/chatbot.dart';
 import 'package:sikkim_app/screens/main_shell.dart';
 import 'package:sikkim_app/screens/login.dart';
 import 'package:shared_preferences/shared_preferences.dart';

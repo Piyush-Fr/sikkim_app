@@ -251,7 +251,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: primaryColor.withOpacity(0.5), width: 3),
+                        border: Border.all(color: primaryColor.withValues(alpha:0.5), width: 3),
                       ),
                       child: CircleAvatar(
                         radius: 50,

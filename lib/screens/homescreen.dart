@@ -129,7 +129,7 @@ class _HomeState extends State<Home> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.15),
+            color: Colors.blue.withValues(alpha:0.15),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -153,8 +153,8 @@ class _HomeState extends State<Home> {
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    const Color(0xFF0A0E21).withOpacity(0.4),
-                    const Color(0xFF0A0E21).withOpacity(0.85),
+                    const Color(0xFF0A0E21).withValues(alpha:0.4),
+                    const Color(0xFF0A0E21).withValues(alpha:0.85),
                   ],
                   stops: const [0.0, 0.45, 1.0],
                 ),
@@ -203,7 +203,7 @@ class _HomeState extends State<Home> {
                   Text(
                     'Experience breathtaking landscapes and\nvibrant culture in the heart of the\nHimalayas.',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
+                      color: Colors.white.withValues(alpha:0.8),
                       fontSize: 13,
                       fontFamily: 'Poppins',
                       height: 1.4,
@@ -244,7 +244,7 @@ class _HomeState extends State<Home> {
                 border: Border.all(
                   color: isSelected
                       ? const Color(0xFF4A90FF)
-                      : Colors.white.withOpacity(0.25),
+                      : Colors.white.withValues(alpha:0.25),
                   width: 1.5,
                 ),
               ),
@@ -256,7 +256,7 @@ class _HomeState extends State<Home> {
                     size: 18,
                     color: isSelected
                         ? Colors.white
-                        : Colors.white.withOpacity(0.7),
+                        : Colors.white.withValues(alpha:0.7),
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -264,7 +264,7 @@ class _HomeState extends State<Home> {
                     style: TextStyle(
                       color: isSelected
                           ? Colors.white
-                          : Colors.white.withOpacity(0.7),
+                          : Colors.white.withValues(alpha:0.7),
                       fontSize: 14,
                       fontWeight:
                           isSelected ? FontWeight.w600 : FontWeight.w400,
@@ -306,7 +306,7 @@ class _HomeState extends State<Home> {
                   Text(
                     'Must-visit iconic destinations',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.5),
+                      color: Colors.white.withValues(alpha:0.5),
                       fontSize: 13,
                       fontFamily: 'Poppins',
                     ),
@@ -361,12 +361,12 @@ class _HomeState extends State<Home> {
           color: const Color(0xFF141829),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.white.withOpacity(0.06),
+            color: Colors.white.withValues(alpha:0.06),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha:0.3),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -434,7 +434,7 @@ class _HomeState extends State<Home> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.5),
+                      color: Colors.white.withValues(alpha:0.5),
                       fontSize: 12,
                       fontFamily: 'Poppins',
                       height: 1.4,
@@ -477,7 +477,7 @@ class _HomeState extends State<Home> {
         color: const Color(0xFF141829),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withOpacity(0.06),
+          color: Colors.white.withValues(alpha:0.06),
           width: 1,
         ),
       ),
@@ -487,7 +487,7 @@ class _HomeState extends State<Home> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFF4A90FF).withOpacity(0.15),
+              color: const Color(0xFF4A90FF).withValues(alpha:0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
@@ -514,7 +514,7 @@ class _HomeState extends State<Home> {
                 Text(
                   'Visit between March and May for blooming rhododendrons and clear skies.',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.55),
+                    color: Colors.white.withValues(alpha:0.55),
                     fontSize: 13,
                     fontFamily: 'Poppins',
                     height: 1.5,
@@ -548,12 +548,12 @@ class _HomeState extends State<Home> {
           builder: (context, scrollController) {
             return Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF0A0E21).withOpacity(0.95),
+                color: const Color(0xFF0A0E21).withValues(alpha:0.95),
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(20)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.5),
+                    color: Colors.black.withValues(alpha:0.5),
                     blurRadius: 20,
                     offset: const Offset(0, -6),
                   ),

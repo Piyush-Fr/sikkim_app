@@ -53,6 +53,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   firebase_storage: ^12.4.10
 
+  http: any
+  video_player: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

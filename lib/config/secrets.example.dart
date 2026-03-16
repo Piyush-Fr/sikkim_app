@@ -1,6 +1,7 @@
 /// API keys and secrets template.
 /// Copy this file to secrets.dart and fill in your actual API keys.
 /// DO NOT commit secrets.dart to version control.
+library;
 
 class Secrets {
   Secrets._();

@@ -7,7 +7,7 @@ import 'package:video_player/video_player.dart';
 import 'main_shell.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -247,7 +247,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
 
           // Black tint overlay
           Positioned.fill(
-            child: Container(color: Colors.black.withOpacity(0.4)),
+            child: Container(color: Colors.black.withValues(alpha:0.4)),
           ),
 
           // Content
@@ -255,10 +255,10 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.35),
+                color: Colors.black.withValues(alpha:0.35),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.08),
+                  color: Colors.white.withValues(alpha:0.08),
                   width: 1,
                 ),
               ),

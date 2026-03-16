@@ -6,11 +6,13 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class StreetViewExample extends StatefulWidget {
+  const StreetViewExample({super.key});
+
   @override
-  _StreetViewExampleState createState() => _StreetViewExampleState();
+  StreetViewExampleState createState() => StreetViewExampleState();
 }
 
-class _StreetViewExampleState extends State<StreetViewExample> {
+class StreetViewExampleState extends State<StreetViewExample> {
   GoogleMapController? _mapController;
   String? _mapStyle;
   bool _locationPermissionGranted = false;
@@ -104,8 +106,9 @@ class _StreetViewExampleState extends State<StreetViewExample> {
   Future<void> _requestLocationPermission() async {
     try {
       final status = await Permission.location.request();
-      if (mounted)
+      if (mounted) {
         setState(() => _locationPermissionGranted = status.isGranted);
+      }
     } catch (e) {
       if (mounted) setState(() => _error = 'Permission error: $e');
     }
@@ -113,13 +116,6 @@ class _StreetViewExampleState extends State<StreetViewExample> {
 
   void _onMapCreated(GoogleMapController controller) async {
     _mapController = controller;
-    try {
-      if (_mapStyle != null) {
-        await _mapController!.setMapStyle(_mapStyle);
-      }
-    } catch (_) {
-      // Ignore styling errors
-    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -204,6 +200,7 @@ class _StreetViewExampleState extends State<StreetViewExample> {
       body: Stack(
         children: [
           GoogleMap(
+            style: _mapStyle,
             onMapCreated: _onMapCreated,
             initialCameraPosition: const CameraPosition(
               target: _sikkimCenter,
@@ -248,8 +245,8 @@ class _StreetViewExampleState extends State<StreetViewExample> {
       floatingActionButton: FloatingActionButton(
         onPressed: _recenter,
         backgroundColor: Colors.white,
-        child: const Icon(Icons.center_focus_strong, color: Colors.black),
         tooltip: 'Recenter on Sikkim',
+        child: const Icon(Icons.center_focus_strong, color: Colors.black),
       ),
     );
   }

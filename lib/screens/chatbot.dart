@@ -7,7 +7,6 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:google_generative_ai/google_generative_ai.dart' as genai;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http;
 import '../config/secrets.dart';
 
 class Chatbot extends StatefulWidget {
@@ -183,29 +182,7 @@ class _ChatbotState extends State<Chatbot>
   }
 
   // STT removed
-
-  Future<void> _testConnection() async {
-    try {
-      final response = await http.get(Uri.parse('https://www.google.com'));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Connection Success: ${response.statusCode}'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Connection FAILED: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
+  // _testConnection removed
 
   Future<void> _speak(String text, {String lang = 'en-IN'}) async {
     if (!_narrationEnabled) return;
@@ -216,21 +193,6 @@ class _ChatbotState extends State<Chatbot>
     }
     await _tts.setSpeechRate(0.55);
     await _tts.speak(text);
-  }
-
-  Future<String> _offlineAnswer(String prompt, String locale) async {
-    final box = Hive.box('guide_cache');
-    final key = 'faq';
-    final Map faq = box.get(key, defaultValue: {}) as Map;
-    final lower = prompt.toLowerCase();
-    for (final e in faq.entries) {
-      if (lower.contains(e.key.toString().toLowerCase())) {
-        return e.value.toString();
-      }
-    }
-    return locale.startsWith('hi')
-        ? 'क्षमा करें, अभी इंटरनेट नहीं है। मैं बाद में विस्तृत जानकारी दूँगी।'
-        : 'Sorry, no internet. I will share detailed guidance when online.';
   }
 
   Future<void> _askGuide(String locale) async {
@@ -271,7 +233,7 @@ class _ChatbotState extends State<Chatbot>
             );
       } catch (retryError) {
         print('DEBUG CHATBOT: _generateWithRetry threw: $retryError');
-        throw retryError;
+        rethrow;
       }
       print('DEBUG CHATBOT: API result: ${respText == null ? "null" : "length=${respText.length}"}');
 
