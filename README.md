@@ -38,6 +38,8 @@ Whether someone is planning a trip or already visiting Sikkim, this app aims to 
 
 ## Project Structure
 
+
+
 ```bash
 sikkim_app/
 ├── android/
